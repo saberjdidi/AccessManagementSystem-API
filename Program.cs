@@ -1,5 +1,9 @@
 using AccessManagementSystem_API.Data;
+using AccessManagementSystem_API.Helper;
 using AccessManagementSystem_API.Models;
+using AccessManagementSystem_API.Services.Implementation;
+using AccessManagementSystem_API.Services;
+using AutoMapper;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +12,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
+using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
@@ -104,6 +109,28 @@ builder.Services
             ClockSkew = TimeSpan.Zero
         };
     });
+#endregion
+
+#region AutoMapper
+var automapper = new MapperConfiguration(item => item.AddProfile(new AutoMapperHandler()));
+IMapper mapper = automapper.CreateMapper();
+builder.Services.AddSingleton(mapper);
+#endregion
+
+#region Repository & Service
+builder.Services.AddTransient<ICustomerService, CustomerService>();
+builder.Services.AddTransient<IRoleManagmentService, RoleManagmentService>();
+builder.Services.AddTransient<IUserService, UserService>();
+#endregion
+
+#region Rate Limiting
+builder.Services.AddRateLimiter(_ => _.AddFixedWindowLimiter(policyName: "fixedwindow", options =>
+{
+    options.Window = TimeSpan.FromSeconds(10);
+    options.PermitLimit = 1;
+    options.QueueLimit = 0;
+    options.QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst;
+}).RejectionStatusCode = 401);
 #endregion
 
 var app = builder.Build();

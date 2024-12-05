@@ -12,5 +12,6 @@ namespace AccessManagementSystem_API.Dtos
         public bool TwoFactorEnabled { get; set; }
         public bool PhoneNumberConfirmed { get; set; }
         public int AccessFailedCount { get; set; }
+        public bool LockoutEnabled { get; set; }
     }
 }

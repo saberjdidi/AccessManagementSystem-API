@@ -1,5 +1,7 @@
 ﻿using AccessManagementSystem_API.Dtos;
+using AccessManagementSystem_API.Migrations;
 using AccessManagementSystem_API.Models;
+using AccessManagementSystem_API.Services;
 using Azure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -8,10 +10,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using RestSharp;
+using System.Data;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
+
 
 namespace AccessManagementSystem_API.Controllers
 {
@@ -24,11 +29,13 @@ namespace AccessManagementSystem_API.Controllers
         private readonly UserManager<AppUser> _userManager;
         //private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IConfiguration _configuration;
+        private readonly IUserService _userService;
 
-        public AccountController(UserManager<AppUser> userManager, IConfiguration configuration)
+        public AccountController(UserManager<AppUser> userManager, IConfiguration configuration, IUserService userService)
         {
             _userManager = userManager;
             _configuration = configuration;
+            _userService = userService;
         }
 
         [AllowAnonymous]
@@ -90,25 +97,42 @@ namespace AccessManagementSystem_API.Controllers
                     Message = "User not found"
                 });  
             }
-
-            var result = await _userManager.CheckPasswordAsync(user, loginDto.Password);
-            if (!result)
+            if(user.LockoutEnabled == true)
             {
-                return Unauthorized(new AuthResponseDto
+                var result = await _userManager.CheckPasswordAsync(user, loginDto.Password);
+                if (!result)
                 {
-                    IsSuccess = false,
-                    Message = "Invalid Credentials"
+                    return Unauthorized(new AuthResponseDto
+                    {
+                        IsSuccess = false,
+                        Message = "Invalid Credentials"
+                    });
+                }
+
+                var token = GenerateToken(user);
+                var refreshToken = GenerateRefreshToken();
+                _ = int.TryParse(_configuration.GetSection("JWTSetting").GetSection("RefreshTokenValidityIn").Value!, out int RefreshTokenValidityIn);
+                user.RefreshToken = refreshToken;
+                user.RefreshTokenExpiryTime = DateTime.UtcNow.AddMinutes(RefreshTokenValidityIn);
+                await _userManager.UpdateAsync(user);
+
+                return Ok(new AuthResponseDto
+                {
+                    Token = token,
+                    IsSuccess = true,
+                    Message = "Login Success",
+                    RefreshToken = refreshToken,
                 });
             }
-
-            var token = GenerateToken(user);
-
-            return Ok(new AuthResponseDto
+            else
             {
-                Token = token,
-                IsSuccess = true,
-                Message = "Login Success"
-            });
+                return BadRequest(new AuthResponseDto
+                {
+                    IsSuccess = false,
+                    Message = "Your Account Not Active"
+                });
+            }
+            
         }
 
         private string GenerateToken(AppUser user)
@@ -116,7 +140,8 @@ namespace AccessManagementSystem_API.Controllers
             var tokenHandler = new JwtSecurityTokenHandler();
             var secretKey = _configuration.GetSection("JWTSetting").GetSection("securityKey").Value!;
             var key = Encoding.ASCII.GetBytes(secretKey);
-            var expiration = DateTime.UtcNow.AddHours(1);
+            var expiration = DateTime.UtcNow.AddMinutes(1);
+            //var expiration = DateTime.UtcNow.AddHours(1);
 
             var roles = _userManager.GetRolesAsync(user).Result;
 
@@ -141,6 +166,68 @@ namespace AccessManagementSystem_API.Controllers
             };
             var token = tokenHandler.CreateToken(tokenDescriptor);
             return tokenHandler.WriteToken(token);
+        }
+
+        private string GenerateRefreshToken()
+        {
+            var randomNumber = new byte[32];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(randomNumber);
+            return Convert.ToBase64String(randomNumber);
+        }
+
+        [AllowAnonymous]
+        [HttpPost("refresh-token")]
+        public async Task<ActionResult<AuthResponseDto>> RefreshToken(TokenDto tokenDto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var principal = GetPrincipalFromExpiredToken(tokenDto.Token);
+            var user = await _userManager.FindByEmailAsync(tokenDto.Email);
+
+            if (principal is null || user is null || user.RefreshToken != tokenDto.RefreshToken || user.RefreshTokenExpiryTime <= DateTime.UtcNow) 
+                return BadRequest(new AuthResponseDto
+                {
+                    IsSuccess = false,
+                    Message = "Invalid client request"
+                });
+
+            var newJwtToken = GenerateToken(user);
+            var newRefreshToken = GenerateRefreshToken();
+            _ = int.TryParse(_configuration.GetSection("JWTSetting").GetSection("RefreshTokenValidityIn").Value!, out int RefreshTokenValidityIn);
+            user.RefreshToken = newRefreshToken;
+            user.RefreshTokenExpiryTime = DateTime.UtcNow.AddMinutes(RefreshTokenValidityIn);
+            await _userManager.UpdateAsync(user);
+
+            return Ok(new AuthResponseDto
+            {
+                Token = newJwtToken,
+                IsSuccess = true,
+                Message = "Refreshed Token Successfully",
+                RefreshToken = newRefreshToken,
+            });
+        }
+
+            private ClaimsPrincipal? GetPrincipalFromExpiredToken(string token)
+        {
+            var tokenParameters = new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                ValidateIssuer = false,
+                ValidateAudience = false,
+                ValidateLifetime = false,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration.GetSection("JWTSetting").GetSection("securityKey").Value!)),
+            };
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var principal = tokenHandler.ValidateToken(token, tokenParameters, out SecurityToken securityToken);
+
+            if (securityToken is not JwtSecurityToken jwtSecurityToken || !jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
+                throw new SecurityTokenException("Invalid Token");
+
+            return principal;
         }
 
         [HttpGet("detail")]
@@ -171,6 +258,20 @@ namespace AccessManagementSystem_API.Controllers
             });
         }
 
+        [HttpGet("getUserByEmail")]
+        public async Task<IActionResult> GetUserByEmail(string email)
+        {
+            var response = await _userService.GetUserByEmail(email);
+            if(response.IsSuccess == true)
+            {
+                return Ok(response);
+            }
+            else
+            {
+                return BadRequest(response);
+            }
+        }
+
         [HttpGet]
         public async Task<ActionResult<IEnumerable<UserDetailDto>>> GetUsers()
         {
@@ -184,8 +285,10 @@ namespace AccessManagementSystem_API.Controllers
                 {
                     Id=user.Id,
                     Email = user.Email,
-                    FullName = user.UserName,
-                    Roles = roles
+                    FullName = user.FullName,
+                    Roles = roles,
+                    LockoutEnabled = user.LockoutEnabled,
+                    PhoneNumber = user.PhoneNumber,
                 });
             }
             
@@ -291,6 +394,54 @@ namespace AccessManagementSystem_API.Controllers
                     Message = result.Errors.FirstOrDefault()!.Description
                 });
             }
+        }
+
+        [HttpPost("change-password")]
+        public async Task<IActionResult> ChangePassword(ChangePasswordDto changePasswordDto)
+        {
+            var user = await _userManager.FindByEmailAsync(changePasswordDto.Email);
+
+            if (user is null)
+            {
+                return BadRequest(new AuthResponseDto
+                {
+                    IsSuccess = false,
+                    Message = "User does not exist with this email"
+                });
+            }
+
+            var result = await _userManager.ChangePasswordAsync(user, changePasswordDto.currentPassword, changePasswordDto.NewPassword);
+            if (result.Succeeded)
+            {
+                return Ok(new AuthResponseDto
+                {
+                    IsSuccess = true,
+                    Message = "Password Changed Successfully."
+                });
+            }
+            else
+            {
+                return BadRequest(new AuthResponseDto
+                {
+                    IsSuccess = false,
+                    Message = result.Errors.FirstOrDefault()!.Description
+                });
+            }
+        }
+
+        [HttpPost("updatestatus")]
+        public async Task<IActionResult> updatestatus(UpdateRoleStatus updateStatus)
+        {
+            var data = await this._userService.UpdateStatus(updateStatus);
+            return Ok(data);
+        }
+
+        [AllowAnonymous]
+        [HttpPost("updaterole")]
+        public async Task<IActionResult> updaterole(UpdateRoleStatus updateRole)
+        {
+            var data = await _userService.UpdateRole(updateRole);
+            return Ok(data);
         }
     }
 }

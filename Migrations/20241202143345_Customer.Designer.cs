@@ -4,6 +4,7 @@ using AccessManagementSystem_API.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AccessManagementSystem_API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20241202143345_Customer")]
+    partial class Customer
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -131,70 +134,6 @@ namespace AccessManagementSystem_API.Migrations
                     b.HasKey("Code");
 
                     b.ToTable("tbl_customer");
-                });
-
-            modelBuilder.Entity("AccessManagementSystem_API.Models.Menu", b =>
-                {
-                    b.Property<string>("Code")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
-                        .HasColumnName("code");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
-                        .HasColumnName("name");
-
-                    b.Property<bool?>("Status")
-                        .HasColumnType("bit")
-                        .HasColumnName("status");
-
-                    b.HasKey("Code");
-
-                    b.ToTable("tbl_menu");
-                });
-
-            modelBuilder.Entity("AccessManagementSystem_API.Models.RolePermission", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasColumnName("id");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("Haveadd")
-                        .HasColumnType("bit")
-                        .HasColumnName("haveadd");
-
-                    b.Property<bool>("Havedelete")
-                        .HasColumnType("bit")
-                        .HasColumnName("havedelete");
-
-                    b.Property<bool>("Haveedit")
-                        .HasColumnType("bit")
-                        .HasColumnName("haveedit");
-
-                    b.Property<bool>("Haveview")
-                        .HasColumnType("bit")
-                        .HasColumnName("haveview");
-
-                    b.Property<string>("Menucode")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
-                        .HasColumnName("menucode");
-
-                    b.Property<string>("Userrole")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
-                        .HasColumnName("userrole");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("tbl_rolepermission");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>

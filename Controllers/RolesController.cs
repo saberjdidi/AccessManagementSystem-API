@@ -1,5 +1,6 @@
 ﻿using AccessManagementSystem_API.Dtos;
 using AccessManagementSystem_API.Models;
+using AccessManagementSystem_API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -15,11 +16,13 @@ namespace AccessManagementSystem_API.Controllers
     {
         private readonly UserManager<AppUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly IRoleManagmentService _roleManagmentService;
 
-        public RolesController(UserManager<AppUser> userManager, RoleManager<IdentityRole> roleManager)
+        public RolesController(UserManager<AppUser> userManager, RoleManager<IdentityRole> roleManager, IRoleManagmentService roleManagmentService)
         {
             _userManager = userManager;
             _roleManager = roleManager;
+            _roleManagmentService = roleManagmentService;   
         }
 
         [HttpPost]
@@ -115,6 +118,46 @@ namespace AccessManagementSystem_API.Controllers
 
             var error = result.Errors.FirstOrDefault();
             return BadRequest(error!.Description);
+        }
+
+        [HttpPost("assignrolepermission")]
+        public async Task<IActionResult> assignrolepermission(List<RolePermission> rolePermission)
+        {
+            var data = await this._roleManagmentService.AssignRolePermission(rolePermission);
+            return Ok(data);
+        }
+
+        [HttpGet("GetAllMenus")]
+        public async Task<IActionResult> GetAllMenus()
+        {
+            var data = await this._roleManagmentService.GetAllMenus();
+            if (data == null)
+            {
+                return NotFound();
+            }
+            return Ok(data);
+        }
+
+        [HttpGet("GetAllMenusbyrole")]
+        public async Task<IActionResult> GetAllMenusbyrole(string userrole)
+        {
+            var data = await this._roleManagmentService.GetAllMenuByRole(userrole);
+            if (data == null)
+            {
+                return NotFound();
+            }
+            return Ok(data);
+        }
+
+        [HttpGet("GetMenupermissionbyrole")]
+        public async Task<IActionResult> GetMenupermissionbyrole(string userrole, string menucode)
+        {
+            var data = await this._roleManagmentService.GetMenuPermissionByRole(userrole, menucode);
+            if (data == null)
+            {
+                return NotFound();
+            }
+            return Ok(data);
         }
     }
 }
