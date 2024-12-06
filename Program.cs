@@ -13,6 +13,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using Microsoft.AspNetCore.RateLimiting;
+using AccessManagementSystem_API.Repository;
 
 var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
@@ -118,9 +119,12 @@ builder.Services.AddSingleton(mapper);
 #endregion
 
 #region Repository & Service
+builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddTransient<ICustomerService, CustomerService>();
 builder.Services.AddTransient<IRoleManagmentService, RoleManagmentService>();
 builder.Services.AddTransient<IUserService, UserService>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IProductService, ProductService>();
 #endregion
 
 #region Rate Limiting
