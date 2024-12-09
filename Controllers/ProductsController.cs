@@ -21,8 +21,41 @@ namespace AccessManagementSystem_API.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAllProducts()
         {
+            List<Product> listProducts = new List<Product>();
             var result = await _service.GetAllProductsAsync();
-            return Ok(result);
+            foreach (var product in result) { 
+             Product productDto = new Product
+             {
+                 Id = product.Id,
+                 Name = product.Name,   
+                 Description = product.Description,
+                 Category = product.Category,
+                 CategoryId = product.CategoryId,
+                 CreatedAt = DateTime.Now,
+                 Price = product.Price,
+                 ImagePath = $"https://localhost:7292/images/{product.ImagePath}",
+             };
+                listProducts.Add(productDto);
+            }
+            return Ok(listProducts);
+        }
+
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetProductById(int id)
+        {
+            try
+            {
+                var product = await _service.GetProductByIdAsync(id);
+                if (product is null)
+                {
+                    return NotFound();
+                }
+                return Ok(product);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
 
         //[HttpPost]

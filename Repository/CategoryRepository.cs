@@ -1,6 +1,7 @@
 ﻿using AccessManagementSystem_API.Data;
 using AccessManagementSystem_API.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 
 namespace AccessManagementSystem_API.Repository
 {
@@ -39,6 +40,11 @@ namespace AccessManagementSystem_API.Repository
                 _context.Categories.Remove(category);
                 await _context.SaveChangesAsync();
             }
+        }
+
+        public IEnumerable<Category> GetAll(Expression<Func<Category, bool>>? filter = null, string? includeProperties = null, bool tracked = false)
+        {
+            throw new NotImplementedException();
         }
     }
 

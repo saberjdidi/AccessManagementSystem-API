@@ -16,7 +16,8 @@ namespace AccessManagementSystem_API.Services.Implementation
 
         public async Task DeleteProductAsync(int id) => await _repository.DeleteAsync(id);
 
-        public async Task<IEnumerable<Product>> GetAllProductsAsync() => await _repository.GetAllAsync();
+        public async Task<IEnumerable<Product>> GetAllProductsAsync() => _repository.GetAll(includeProperties: "Category");
+        //public async Task<IEnumerable<Product>> GetAllProductsAsync() => await _repository.GetAllAsync();
 
         public async Task<Product> GetProductByIdAsync(int id) => await _repository.GetByIdAsync(id);
 
